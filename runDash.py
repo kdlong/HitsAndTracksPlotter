@@ -7,26 +7,70 @@ import uproot
 from HitsAndTracksPlotter import HitsAndTracksPlotter
 
 app = dash.Dash(__name__)
+hit_options_ = ["SimHitHGCEE", "SimHitHGCHEF", "SimHitHGCHEB", "SimHitMuonCSC", "SimHitPixelECLowTof", "SimHitPixelLowTof",
+                    "RecHitHGCEE", "RecHitHGCHEF", "RecHitHGCHEB"]
 
 app.layout = html.Div([
     dcc.Graph(id="scatter-plot", style={'width': '100%', 'height': '70%'}),
-    html.Label('HitTypes'),
+    dcc.Input(
+        id="event", type="number", placeholder="event",
+        min=0, max=10, step=1,
+    ),
+    html.Br(),
+    html.Label('Particles per endcap'),
+    dcc.Dropdown(
+        id='numPart',
+        options=[{'label': i, 'value': i} for i in 
+            [10, 80]],
+        value=10
+    ),
+    html.Br(),
+    html.Label('Hit types'),
     dcc.Checklist(
         id='hitTypes',
-        options=[{'label': i, 'value': i} for i in 
-            ["SimHitHGCEE", "SimHitHGCHEF", "SimHitHGCHEB"]],
-        value=["SimHitHGCEE", "SimHitHGCHEF", "SimHitHGCHEB"],
+        options=[{'label': i, 'value': i} for i in hit_options_
+            ],
+        value=hit_options_[:6],
     ),
-    html.Label('ColorStyle'),
+    html.Label('Draw detector'),
+    dcc.Checklist(
+        id='detectorElements',
+        options=[{'label': i, 'value': i} for i in 
+            ["Tracker", "CSC front", "HGCAL front"]],
+        value=["Tracker", "CSC front", "HGCAL front"],
+    ),
+    html.Label('Particle trajectories'),
+    dcc.Dropdown(
+        id='particles',
+        options=[{'label': i, 'value': i} for i in 
+            ["GenPart", "TrackingPart", "PFCand", "PFTICLCand", "CaloPart", "None"]],
+        value="GenPart"
+    ),
+    html.Label('Hit color mode'),
     dcc.Dropdown(
         id='colormode',
-        options=[{'label': i, 'value': i} for i in ["MergedSimClusterIdx", "SimClusterIdx", "pdgId",]],
+        options=[{'label': i, 'value': i} for i in ["MergedSimClusterIdx", "SimClusterIdx", "CaloPartIdx", "pdgId",
+            "PFCandIdx", "PFTICLCandIdx"]],
         value='pdgId'
+    ),
+    html.Label('Particle color mode'),
+    dcc.Dropdown(
+        id='pcolormode',
+        options=[{'label': i, 'value': i} for i in ["Index", "pdgId",]],
+        value='pdgId'
+    ),
+    html.Label('Show SimClusters'),
+    dcc.Dropdown(
+        id='simclusters',
+        options=[{'label': "Default", 'value': "SimCluster"}, 
+            {'label' : "Merged", "value" : "MergedSimCluster"},
+            {'label' : "None", "value" : "None"}],
+        value="None"
     ),
     ],
     style={
         "width": "100%",
-        "height": "1000px",
+        "height": "1600px",
         "display": "inline-block",
         "border": "3px #5c5c5c solid",
         "padding-top": "5px",
@@ -38,19 +82,31 @@ app.layout = html.Div([
 @app.callback(
     Output("scatter-plot", "figure"), 
     [Input("hitTypes", "value")],
+    [Input("detectorElements", "value")],
     [Input("colormode", "value")],
+    [Input("pcolormode", "value")],
+    [Input("particles", "value")],
+    [Input("simclusters", "value")],
+    [Input("event", "value")],
+    [Input("numPart", "value")],
 )
-def draw_figure(hitTypes, colormode):
-    plotter = HitsAndTracksPlotter("/Users/kenneth/cernbox/ML4Reco/Ntuples/Gun10Part_CHEPDef_nanoNoFineCalo.root")
+def draw_figure(hitTypes, detectors, colormode, pcolormode, particles, simclusters, event, numPart):
+    if numPart == 80:
+        plotter = HitsAndTracksPlotter("/Users/kenneth/cernbox/ML4Reco/Ntuples/111_nanoML.root")
+    else:
+        plotter = HitsAndTracksPlotter("/Users/kenneth/cernbox/ML4Reco/Ntuples/Gun10Part_CHEPDef_fineCalo_nano.root")
     plotter.setSimClusters(["SimCluster", "MergedSimCluster"])
     plotter.setHits(hitTypes)
-    #print("Setting")
-    #plotter.setSimClusters(["SimCluster", "MergedSimCluster"])
+    plotter.setEvent(event if event else 0)
+    plotter.setDetectors(detectors)
+    if particles != "None":
+        plotter.setParticles(particles)
     plotter.loadDataNano()
 
+    data = plotter.drawAllObjects(colormode, pcolormode, simclusters)
     return {
-        'layout' : plotter.makeLayout(),
-        'data' : plotter.drawAllHits(colormode)
+        'layout' : plotter.makeLayout(numPart),
+        'data' : data,
     }
 
 if __name__ == '__main__':
