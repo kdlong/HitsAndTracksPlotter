@@ -5,4 +5,11 @@ Relies on NanoHGCML ntuples. Instructions for generating these can be found [her
 
 The code is a restructured version of [this repository](https://github.com/kdlong/SimClusterVisualization) using [dash](https://plotly.com/dash/) to make an interactive dashboard.
 
-Start the server with ```python runDash.py```. Then direct your browser to localhost:3389
+Start the server with 
+
+```bash
+pip install -r requirements.txt
+python3 runDash.py
+``` 
+
+Then direct your browser to localhost:3389
