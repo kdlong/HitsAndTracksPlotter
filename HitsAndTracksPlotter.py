@@ -26,17 +26,15 @@ class HitsAndTracksPlotter(object):
                                 "SimHitMuonCSC" : self.hitCommonBranches + ["pdgId"],
                                 "SimHitPixelECLowTof" : self.hitCommonBranches + ["pdgId"],
                                 "SimHitPixelLowTof" : self.hitCommonBranches + ["pdgId"],
-                                "RecHitHGCEE" : self.hitCommonBranches + ["PFCandIdx", "SimClusterNumMatch", ],
-                                "RecHitHGCHEF" : self.hitCommonBranches + ["PFCandIdx", "SimClusterNumMatch", ],
-                                "RecHitHGCHEB" : self.hitCommonBranches + ["PFCandIdx", "SimClusterNumMatch", ],
+                                "RecHitHGC" : self.hitCommonBranches + ["PFCandIdx", "SimClusterNumMatch", ],
         }
         self.scBranches = ["impactPoint_x", "impactPoint_y", "impactPoint_z", "pdgId", 
-                "nHits", "boundaryEnergy",]
-        self.scAddBranches = ["MergedSimClusterIdx", "recEnergy", "CaloPartIdx",]
+                "nHits", "boundaryEnergy", "isTrainable", "onHGCFrontFace"]
+        self.scAddBranches = ["MergedSimClusterIdx", "recEnergy", "CaloPartIdx", ]
         self.candBranchesNoVtx = ["pt", "eta", "phi", "mass", "charge", "pdgId"]
         self.candBranches = self.candBranchesNoVtx + ["Vtx_x", "Vtx_y", "Vtx_z"]
         # Objects that have their own vertices
-        self.vertices = ["TrackingPart", "PFCand", "PFTICLCand",]
+        self.vertices = ["TrackingPart", "PFCand", ]
 
         cmap = matplotlib.cm.get_cmap('tab20b')    
         # For a small number of clusters, make them pretty
@@ -202,7 +200,10 @@ class HitsAndTracksPlotter(object):
         #    df = self.data["simClusters"][label] 
         pos = label+"_"+self.simClusterPos
         df = self.data["simClusters"][label]
-        filt = (abs(df[pos+"_x"]) < 300) & (abs(df[pos+"_y"]) < 300) & (abs(df[pos+"_z"]) < 500)
+        # This is efectively just an all true condition
+        filt = df[label+"_boundaryEnergy"] > 0
+        #if label+'_isTrainable' in df:
+        #    filt = df[label+'_isTrainable'] & df[label+'_onHGCFrontFace']
 
         df_filt = df[filt]
         scidx = df_filt.index
@@ -227,7 +228,9 @@ class HitsAndTracksPlotter(object):
 
         df = self.data["simClusters"][label]
         pos = label+"_"+self.simClusterPos
-        filt = (abs(df[pos+"_x"]) < 300) & (abs(df[pos+"_y"]) < 300) & (abs(df[pos+"_z"]) < 500)
+        filt = df[label+"_boundaryEnergy"] > 0
+        #if label+'_isTrainable' in df:
+        #    filt = df[label+'_isTrainable'] & df[label+'_onHGCFrontFace']
         df_filt = df[filt]
         
         text = self.simClusterDrawText(label)

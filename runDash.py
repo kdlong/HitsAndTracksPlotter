@@ -5,10 +5,11 @@ from dash.dependencies import Input, Output
 import plotly.graph_objects as go
 import uproot
 from HitsAndTracksPlotter import HitsAndTracksPlotter
+import os
 
 app = dash.Dash(__name__)
 hit_options_ = ["SimHitHGCEE", "SimHitHGCHEF", "SimHitHGCHEB", "SimHitMuonCSC", "SimHitPixelECLowTof", "SimHitPixelLowTof",
-                    "RecHitHGCEE", "RecHitHGCHEF", "RecHitHGCHEB"]
+                    "RecHitHGC", ]
 
 app.layout = html.Div([
     dcc.Graph(id="scatter-plot", style={'width': '100%', 'height': '70%'}),
@@ -21,8 +22,8 @@ app.layout = html.Div([
     dcc.Dropdown(
         id='numPart',
         options=[{'label': i, 'value': i} for i in 
-            [10, 80]],
-        value=10
+            [10, 50, 80]],
+        value=50
     ),
     html.Br(),
     html.Label('Hit types'),
@@ -43,7 +44,7 @@ app.layout = html.Div([
     dcc.Dropdown(
         id='particles',
         options=[{'label': i, 'value': i} for i in 
-            ["GenPart", "TrackingPart", "PFCand", "PFTICLCand", "CaloPart", "None"]],
+            ["GenPart", "TrackingPart", "PFCand", "CaloPart", "None"]],
         value="GenPart"
     ),
     html.Label('Hit color mode'),
@@ -91,10 +92,13 @@ app.layout = html.Div([
     [Input("numPart", "value")],
 )
 def draw_figure(hitTypes, detectors, colormode, pcolormode, particles, simclusters, event, numPart):
+    ntuple_path = os.path.expanduser("~/cernbox/ML4Reco/Ntuples")
     if numPart == 80:
-        plotter = HitsAndTracksPlotter("/Users/kenneth/cernbox/ML4Reco/Ntuples/111_nanoML.root")
+        plotter = HitsAndTracksPlotter(f"{ntuple_path}/111_nanoML.root")
+    elif numPart == 50:
+        plotter = HitsAndTracksPlotter(f"{ntuple_path}/Gun50Part_CHEPDef_fineCalo_noProp_nano.root")
     else:
-        plotter = HitsAndTracksPlotter("/Users/kenneth/cernbox/ML4Reco/Ntuples/Gun10Part_CHEPDef_fineCalo_nano.root")
+        plotter = HitsAndTracksPlotter(f"/Gun10Part_CHEPDef_fineCalo_nano.root")
     plotter.setSimClusters(["SimCluster", "MergedSimCluster"])
     plotter.setHits(hitTypes)
     plotter.setEvent(event if event else 0)
