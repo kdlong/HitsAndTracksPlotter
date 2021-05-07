@@ -8,8 +8,9 @@ from HitsAndTracksPlotter import HitsAndTracksPlotter
 import os
 
 app = dash.Dash(__name__)
-hit_options_ = ["SimHitHGCEE", "SimHitHGCHEF", "SimHitHGCHEB", "SimHitMuonCSC", "SimHitPixelECLowTof", "SimHitPixelLowTof",
-                    "RecHitHGC", ]
+hit_options_ = ["RecHitHGC", "SimHitMuonCSC", "SimHitPixelECLowTof", "SimHitPixelLowTof",
+                    "SimHitHGCEE", "SimHitHGCHEF", "SimHitHGCHEB", ]
+default_dataset_ = "Gun50Part_CHEPDef_fineCalo_treeMerger_nano.root"
 
 app.layout = html.Div([
     dcc.Graph(id="scatter-plot", style={'width': '100%', 'height': '70%'}),
@@ -18,12 +19,14 @@ app.layout = html.Div([
         min=0, max=10, step=1,
     ),
     html.Br(),
-    html.Label('Particles per endcap'),
+    html.Label('Data set'),
     dcc.Dropdown(
-        id='numPart',
-        options=[{'label': i, 'value': i} for i in 
-            [10, 50, 80]],
-        value=50
+        id='dataset',
+        options=[
+            {'label': "50 particle gun (fineCalo)", 'value': "Gun50Part_CHEPDef_fineCalo_treeMerger_nano.root"},
+            {'label' : '50 particle gun (fineCalo=Off)', 'value' : "Gun50Part_CHEPDef_fineCalo_treeMerger_nano.root"},
+        ],
+        value=default_dataset_
     ),
     html.Br(),
     html.Label('Hit types'),
@@ -31,7 +34,7 @@ app.layout = html.Div([
         id='hitTypes',
         options=[{'label': i, 'value': i} for i in hit_options_
             ],
-        value=hit_options_[:6],
+        value=hit_options_[:4],
     ),
     html.Label('Draw detector'),
     dcc.Checklist(
@@ -50,8 +53,8 @@ app.layout = html.Div([
     html.Label('Hit color mode'),
     dcc.Dropdown(
         id='colormode',
-        options=[{'label': i, 'value': i} for i in ["MergedSimClusterIdx", "SimClusterIdx", "CaloPartIdx", "pdgId",
-            "PFCandIdx", "PFTICLCandIdx"]],
+        options=[{'label': i, 'value': i} for i in ["MergedSimClusterIdx", "MergedByDRSimClusterIdx", 
+            "SimClusterIdx", "CaloPartIdx", "pdgId", "PFCandIdx", "PFTICLCandIdx"]],
         value='pdgId'
     ),
     html.Label('Particle color mode'),
@@ -65,13 +68,22 @@ app.layout = html.Div([
         id='simclusters',
         options=[{'label': "Default", 'value': "SimCluster"}, 
             {'label' : "Merged", "value" : "MergedSimCluster"},
+            {'label' : "MergedByDR", "value" : "MergedByDRSimCluster"},
             {'label' : "None", "value" : "None"}],
         value="None"
     ),
+    html.Br(),
+    html.Label('Filter SimClusters by nHits'),
+    html.Br(),
+    dcc.Input(
+        id="nHitFilter", type="number", placeholder="minHits",
+        min=0, max=20, step=1,
+    ),
+    html.Br(),
     ],
     style={
         "width": "100%",
-        "height": "1600px",
+        "height": "1800px",
         "display": "inline-block",
         "border": "3px #5c5c5c solid",
         "padding-top": "5px",
@@ -89,18 +101,20 @@ app.layout = html.Div([
     [Input("particles", "value")],
     [Input("simclusters", "value")],
     [Input("event", "value")],
-    [Input("numPart", "value")],
+    [Input("nHitFilter", "value")],
+    [Input("dataset", "value")],
 )
-def draw_figure(hitTypes, detectors, colormode, pcolormode, particles, simclusters, event, numPart):
+def draw_figure(hitTypes, detectors, colormode, pcolormode, particles, simclusters, event, nHitFilter, dataset):
     ntuple_path = os.path.expanduser("~/cernbox/ML4Reco/Ntuples")
-    if numPart == 80:
-        plotter = HitsAndTracksPlotter(f"{ntuple_path}/111_nanoML.root")
-    elif numPart == 50:
-        plotter = HitsAndTracksPlotter(f"{ntuple_path}/Gun50Part_CHEPDef_fineCalo_noProp_nano.root")
-    else:
-        plotter = HitsAndTracksPlotter(f"/Gun10Part_CHEPDef_fineCalo_nano.root")
-    plotter.setSimClusters(["SimCluster", "MergedSimCluster"])
+    if not dataset:
+        dataset = default_dataset_
+    plotter = HitsAndTracksPlotter(f"{ntuple_path}/{dataset}")
+    # Merged by dR off for now
+    #plotter.setSimClusters(["SimCluster", "MergedSimCluster", "MergedByDRSimCluster"])
+    plotter.setSimClusters(["SimCluster", "MergedSimCluster", ])
+    plotter.setSimClusterHitFilter(nHitFilter if nHitFilter else 0)
     plotter.setHits(hitTypes)
+    print("event", event, "nHits", nHitFilter)
     plotter.setEvent(event if event else 0)
     plotter.setDetectors(detectors)
     if particles != "None":
@@ -109,7 +123,8 @@ def draw_figure(hitTypes, detectors, colormode, pcolormode, particles, simcluste
 
     data = plotter.drawAllObjects(colormode, pcolormode, simclusters)
     return {
-        'layout' : plotter.makeLayout(numPart),
+        # For now never reset the camera
+        'layout' : plotter.makeLayout('alwaystrue'),
         'data' : data,
     }
 

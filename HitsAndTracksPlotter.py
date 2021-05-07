@@ -5,6 +5,10 @@ import matplotlib._color_data as mcd
 import numpy as np
 import pandas as pd
 import math
+import random
+random.seed(0)
+colors_ = list(mcd.XKCD_COLORS.values())
+random.shuffle(colors_)
 
 class HitsAndTracksPlotter(object):
     def __init__(self):
@@ -17,6 +21,7 @@ class HitsAndTracksPlotter(object):
         self.detectors = []
         self.particles = ""
         self.event = 0
+        self.scHitFilter = 0
         self.rtfile = rtfile
         self.xIsZ = True
         self.hitCommonBranches = ["x", "y", "z", "energy",]
@@ -26,11 +31,16 @@ class HitsAndTracksPlotter(object):
                                 "SimHitMuonCSC" : self.hitCommonBranches + ["pdgId"],
                                 "SimHitPixelECLowTof" : self.hitCommonBranches + ["pdgId"],
                                 "SimHitPixelLowTof" : self.hitCommonBranches + ["pdgId"],
-                                "RecHitHGC" : self.hitCommonBranches + ["PFCandIdx", "SimClusterNumMatch", ],
+                                "RecHitHGC" : self.hitCommonBranches + \
+                                    ["PFCandIdx", "BestSimClusterIdx", "BestMergedSimClusterIdx", ]
+                                    # Off for now
+                                    #+ ["BestMergedByDRSimClusterIdx"],
         }
         self.scBranches = ["impactPoint_x", "impactPoint_y", "impactPoint_z", "pdgId", 
                 "nHits", "boundaryEnergy", "isTrainable", "onHGCFrontFace"]
-        self.scAddBranches = ["MergedSimClusterIdx", "recEnergy", "CaloPartIdx", ]
+        self.scAddBranches = {"SimCluster" : ["MergedSimClusterIdx", "CaloPartIdx", "recEnergy"],
+                "MergedSimCluster" : ["recEnergy"],
+        }
         self.candBranchesNoVtx = ["pt", "eta", "phi", "mass", "charge", "pdgId"]
         self.candBranches = self.candBranchesNoVtx + ["Vtx_x", "Vtx_y", "Vtx_z"]
         # Objects that have their own vertices
@@ -40,12 +50,12 @@ class HitsAndTracksPlotter(object):
         # For a small number of clusters, make them pretty
         self.all_colors = [matplotlib.colors.rgb2hex(cmap(i)) for i in range(cmap.N)]
         # For a large number fall back to brute force
-        self.all_colors.extend(list(mcd.XKCD_COLORS.values()))
+        self.all_colors.extend(colors_)
         # Set the preferred colors for specific pdgIds
         self.pdgIdsMap = {1 : "#c8cbcc", 111 : "red", 211 : 'blue', 11 : 'green', 13 : 'orange', 
                                 # kaons
                                 311 : "purple", 321 : "purple", 130 : "darkblue", 310 : "darkblue",
-                                22 : "lightblue", 2112 : "pink", 2212 : "lightpink"}
+                                22 : "lightblue", 2112 : "pink", 2212 : "darkred"}
 
     def addHits(self, hitType):
         self.hits.append(hitType)
@@ -62,6 +72,9 @@ class HitsAndTracksPlotter(object):
     def setSimClusters(self, scs):
         self.simClusters = scs
 
+    def setSimClusterHitFilter(self, nhits):
+        self.scHitFilter = nhits
+
     def setDetectors(self, detectors):
         self.detectors = detectors
 
@@ -77,26 +90,11 @@ class HitsAndTracksPlotter(object):
             df = df.xs(self.event, level="entry")
         return df 
 
-    def extendDataFrameBestMatch(self, datatype, label, matchBranch):
-        f = uproot.open(self.rtfile)
-        events = f["Events"]
-        df = self.data[datatype][label]
-        matches = df[f"{label}_{matchBranch}NumMatch"]
-        array = events[f"{label}_{matchBranch}_MatchIdx"].array()[self.event]
-        # First index should be zero, not sum of matches
-        offsets = np.zeros(matches.shape[0], dtype='int64')
-        offsets[1:] = np.cumsum(matches.to_numpy())[:-1]
-        bestmatch = np.where(matches > 0, array[offsets], -1)
-        df[f"{label}_{matchBranch}BestMatchIdx"] = bestmatch
-
     def loadDataNano(self):
         uproot.open(self.rtfile)
         self.data["hits"] = {h : self.makeDataFrame(h, self.hitBranches[h]) for h in self.hits}
-        for hit in self.data["hits"].keys():
-            if "RecHit" in hit:
-                self.extendDataFrameBestMatch("hits", hit, "SimCluster")
         self.data["simClusters"] = {s : self.makeDataFrame(s, 
-            self.scBranches+(self.scAddBranches if "Merged" not in s else [])) for s in self.simClusters}
+            self.scBranches+(self.scAddBranches[s] if s in self.scAddBranches else [])) for s in self.simClusters}
         self.simClusterPos = "impactPoint" 
         if self.data["simClusters"] and not hasattr(self.data["simClusters"]["SimCluster"], "SimCluster_%s_x" % self.simClusterPos):
             self.simClusterPos = "lastPos"
@@ -113,14 +111,14 @@ class HitsAndTracksPlotter(object):
         if "SimHit" in hitlabel:
             return hitdf[hitlabel+"_SimClusterIdx"].to_numpy()
         else:
-            return hitdf[hitlabel+"_SimClusterBestMatchIdx"].to_numpy()
+            return hitdf[hitlabel+"_BestSimClusterIdx"].to_numpy()
 
     def hitColors(self, label, colortype):
         colors = None
         hitdf = self.data["hits"][label]
         index = 0
         if "HitHGC" not in label:
-            # Only PDG ID supported for muons/tracker for now
+            # Color by PDG ID only option for Muon/Tracker simhits
             colors = hitdf[label+"_pdgId"] if label+"_pdgId" in hitdf else [-1]
         else:
             idx = self.simClusterIdx(label)
@@ -129,12 +127,13 @@ class HitsAndTracksPlotter(object):
                 colors = idx
             elif colortype == "pdgId":
                 colors = scdf["SimCluster_pdgId"].to_numpy()[idx] if scdf is not None else [-1]
-            elif colortype == "MergedSimClusterIdx":
-                colors = scdf["SimCluster_MergedSimClusterIdx"].to_numpy()[idx] if scdf is not None else [-1]
             elif colortype == "CaloPartIdx":
                 colors = scdf["SimCluster_CaloPartIdx"].to_numpy()[idx] if scdf is not None else [-1]
             elif "Idx" in colortype:
-                colors = hitdf[f"{label}_{colortype}"].to_numpy() if hitdf is not None else [-1]
+                if "Sim" in label and colortype == "MergedSimClusterIdx":
+                    colors = scdf["SimCluster_MergedSimClusterIdx"].to_numpy()[idx] if scdf is not None else [-1]
+                else:
+                    colors = hitdf[f"{label}_Best{colortype}"].to_numpy() if hitdf is not None else [-1]
                 idx = colors
             else:
                 raise ValueError("Invalid hit color choice %s" % colortype)
@@ -181,34 +180,22 @@ class HitsAndTracksPlotter(object):
     def drawAllHits(self, colortype):
         return [self.drawHits(hits, colortype) for hits in self.hits]
 
-    def simClusterRecEnergy(self, label):
-        unmerged = self.data["simClusters"]["SimCluster"]
-        if label == "SimCluster":
-            return unmerged[label+"_recEnergy"]
-        # TODO: Make array based
-        # This might help: https://github.com/scikit-hep/awkward-1.0/issues/78
-        else:
-            merged = self.data["simClusters"]["MergedSimCluster"]
-            energies = np.zeros(len(merged))
-            # TODO: Consider returning indices as an awkward array
-            for i in merged.index:
-                energies[i] = np.sum(unmerged["SimCluster_recEnergy"][unmerged["SimCluster_MergedSimClusterIdx"] == i])
-            return energies
-
     def simClusterDrawText(self, label):
         # TODO make more transparent and configurable
         #    df = self.data["simClusters"][label] 
         pos = label+"_"+self.simClusterPos
         df = self.data["simClusters"][label]
         # This is efectively just an all true condition
-        filt = df[label+"_boundaryEnergy"] > 0
+        filt = df[label+"_nHits"] > self.scHitFilter
+        print("Cutting on nHits > ", self.scHitFilter)
         #if label+'_isTrainable' in df:
         #    filt = df[label+'_isTrainable'] & df[label+'_onHGCFrontFace']
 
         df_filt = df[filt]
         scidx = df_filt.index
 
-        recEnergy = self.simClusterRecEnergy(label)
+        recLabel = label+"_recEnergy"
+        recEnergy = np.zeros(len(df)) if recLabel not in df_filt else df_filt[recLabel]
         text = ["Idx: %i<br>nHits: %i<br>pdgId: %i<br>energy: %0.2f: recEnergy: %.2f" % (i,n,p,e,r) for (i,n,p,e,r) \
                     in zip(scidx, df_filt[label+"_nHits"], df_filt[label+"_pdgId"], df_filt[label+"_boundaryEnergy"], recEnergy)]
 
@@ -228,9 +215,9 @@ class HitsAndTracksPlotter(object):
 
         df = self.data["simClusters"][label]
         pos = label+"_"+self.simClusterPos
-        filt = df[label+"_boundaryEnergy"] > 0
         #if label+'_isTrainable' in df:
         #    filt = df[label+'_isTrainable'] & df[label+'_onHGCFrontFace']
+        filt = df[label+"_nHits"] > self.scHitFilter
         df_filt = df[filt]
         
         text = self.simClusterDrawText(label)
@@ -325,8 +312,7 @@ class HitsAndTracksPlotter(object):
         if i >= len(self.all_colors):
             i = np.random.randint(0, len(self.all_colors))
         # Avoid too "smooth" of a transition for close by values
-        idx = i if i % 2 else (20 if i < 20 else len(self.all_colors))-i-1
-        return self.all_colors[idx]
+        return self.all_colors[i]
 
     def makeLayout(self, uirev):
         # This can be done with camera, but it breaks uirevision
