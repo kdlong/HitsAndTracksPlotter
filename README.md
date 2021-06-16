@@ -14,7 +14,13 @@ Then ```. ./env/bin/activate``` before running (needed every time you open a new
 
 Running is most convenient from your local computer, using lxplus etc you would need to play with tunneling or open the browser from lxplus. 
 
-For this, you could copy output files locally using cernbox. The files in the central repo can be found at /eos/cms/store/user/kelong/ML4Reco/.
+For this, you could copy output files locally using cernbox. The files in the central repo can be found at
+
+```/eos/user/n/nchernya/ML4Reco/Gun50/thresholds```
+
+and 
+
+```/eos/user/k/kelong/ML4Reco/Ntuples/```
 
 For example, the 50 particle sample can be copied as
 
