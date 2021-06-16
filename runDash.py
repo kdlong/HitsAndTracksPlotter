@@ -15,7 +15,7 @@ def parseArgs():
     parsers = parser.add_subparsers(dest='mode')
     interactive = parsers.add_parser("interactive", help="Launch and interactive dash session")
     output = parsers.add_parser("output", help="Produce plots as output (not interactive)")
-    output.add_argument("-d", "--dataset", default="Gun10Part_CHEPDef_fineCalo_nano_default_transv_p3_p75_p85_long_p1_p9.root", type=str, help="Input file")
+    output.add_argument("-d", "--dataset", default="Gun50Part_CHEPDef_fineCalo_nano_default.root", type=str, help="Input file")
     output.add_argument("-e", "--event", default=1, type=int, help="Event number to show")
     output.add_argument("-o", "--outputFile", default="event_display", type=str, help="Output file")
     output.add_argument("--outDir", default="plots/", type=str, help="Output plots directory")
@@ -24,9 +24,7 @@ def parseArgs():
 
 hit_options_ = ["RecHitHGC", "SimHitMuonCSC", "SimHitPixelECLowTof", "SimHitPixelLowTof",
                     "SimHitHGCEE", "SimHitHGCHEF", "SimHitHGCHEB", ]
-default_dataset_ = "Gun50Part_CHEPDef_fineCalo_treeMerger_nano.root"
-
-
+default_dataset_ = "Gun50Part_CHEPDef_fineCalo_nano_default.root"
 dataset = default_dataset_
 ntuple_path = os.path.expanduser("Ntuples/merging_thresholds/")
 print("Set plotter")
@@ -75,12 +73,7 @@ app.layout = html.Div([
             {'label': "50 particle gun (fineCalo)", 'value': "Gun50Part_CHEPDef_fineCalo_treeMerger_nano.root"},
             {'label' : '50 particle gun (fineCalo=Off)', 'value' : "Gun50Part_CHEPDef_fineCalo_treeMerger_nano.root"},
             {'label' : 'TTbar (fineCalo)', 'value' : "TTbar_fineCalo_nano.root"},
-            {'label': 'Merging Default','value':"Gun10Part_CHEPDef_fineCalo_nano_default.root"},
-            {'label': 'Merging p35_p8_p9','value':"Gun10Part_CHEPDef_fineCalo_nano_default_transv_p35_p8_p9_numEvent5.root"},
-            {'label': 'Merging p30_p8_p87','value':"Gun10Part_CHEPDef_fineCalo_nano_default_transv_p3_p8_p87.root"},
-            {'label': 'Merging p3_p85_p95_long_p05_p95','value':"Gun10Part_CHEPDef_fineCalo_nano_default_transv_p3_p85_p95_long_p05_p95.root"},
-            {'label': 'Merging p3_p9_p9_long_p05_p95','value':"Gun10Part_CHEPDef_fineCalo_nano_default_transv_p3_p85_p95_long_p05_p95.root"},
-            {'label': 'Merging p3_p85_p9_long_p1_p9','value':"Gun10Part_CHEPDef_fineCalo_nano_default_transv_p3_p85_p9_long_p1_p9.root"}
+            {'label': 'Merging (fineCalo) Default','value':"Gun50Part_CHEPDef_fineCalo_nano_default.root"}
         ],
         value=default_dataset_
     ),
