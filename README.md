@@ -24,7 +24,7 @@ cp /eos/cms/store/user/kelong/ML4Reco/Gun50Part_CHEPDef_NoPropagate/111_nanoML.r
 
 # Running
 
-Two options are available : run an interactive dashboard (mode = interactive) or run with specific conditions and save event display in html format for a particular event (mode = output)
+Two options are available : run an interactive dashboard (mode = interactive) or run on a particular event and save an event display in .html format (mode = output)
 
 ### Interactive dashboard
 Launch the server with
@@ -40,10 +40,14 @@ and direct your browser to localhost:3389
 ```
 python3 runDash.py output 
 ```
-The following options are available : 
--d : input dataset
+The following options are available :
+ 
+-d : input dataset .root file
+
 -e : event number to display
+
 -o : output file
+
 --outDir : output directory where to save the event display
 
 # Use
