@@ -1,22 +1,69 @@
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
-from dash.dependencies import Input, Output
+from dash.dependencies import Output, Input
 import plotly.graph_objects as go
 import uproot
 from HitsAndTracksPlotter import HitsAndTracksPlotter
 import os
+import argparse
 
-app = dash.Dash(__name__)
+
+
+def parseArgs():
+    parser = argparse.ArgumentParser()
+    parsers = parser.add_subparsers(dest='mode')
+    interactive = parsers.add_parser("interactive", help="Launch and interactive dash session")
+    output = parsers.add_parser("output", help="Produce plots as output (not interactive)")
+    output.add_argument("-d", "--dataset", default="Gun50Part_CHEPDef_fineCalo_nano_default.root", type=str, help="Input file")
+    output.add_argument("-e", "--event", default=1, type=int, help="Event number to show")
+    output.add_argument("-o", "--outputFile", default="event_display", type=str, help="Output file")
+    output.add_argument("--outDir", default="plots/", type=str, help="Output plots directory")
+    return parser.parse_args()
+ 
+
 hit_options_ = ["RecHitHGC", "SimHitMuonCSC", "SimHitPixelECLowTof", "SimHitPixelLowTof",
                     "SimHitHGCEE", "SimHitHGCHEF", "SimHitHGCHEB", ]
-default_dataset_ = "Gun50Part_CHEPDef_fineCalo_treeMerger_nano.root"
+default_dataset_ = "Gun50Part_CHEPDef_fineCalo_nano_default.root"
+dataset = default_dataset_
+ntuple_path = os.path.expanduser("Ntuples/merging_thresholds/")
+print("Set plotter")
+globalplotter = HitsAndTracksPlotter(f"{ntuple_path}/{dataset}")
 
+
+def draw_plots(hitTypes, detectors, colormode, pcolormode, particles, simclusters, event, nHitFilter, dataset):
+    if not dataset:
+        dataset = default_dataset_
+    if not event:
+        event = 0
+    # Merged by dR off for now
+    #plotter.setSimClusters(["SimCluster", "MergedSimCluster", "MergedByDRSimCluster"])
+    plotter = globalplotter
+    plotter.setSimClusters(["SimCluster", "MergedSimCluster", "MergedByDRSimCluster"])
+    plotter.setSimClusterHitFilter(nHitFilter if nHitFilter else 0)
+    plotter.setHits(hitTypes)
+    if event != plotter.getEvent() or dataset not in plotter.getDataset():
+        plotter.setEvent(event)
+        plotter.setDataset(f"{ntuple_path}/{dataset}")
+        plotter.setReload()
+    plotter.setDetectors(detectors)
+    plotter.setParticles(particles if particles != "None" else None)
+    globalplotter.loadDataNano()
+
+    data = plotter.drawAllObjects(colormode, pcolormode, simclusters)
+    return {
+        # For now never reset the camera
+        'layout' : plotter.makeLayout('alwaystrue'),
+        'data' : data,
+    }
+
+
+app = dash.Dash(__name__)
 app.layout = html.Div([
     dcc.Graph(id="scatter-plot", style={'width': '90%', 'height': '60%'}),
     dcc.Input(
         id="event", type="number", placeholder="event",
-        min=0, max=10, step=1,
+        min=0, max=17, step=1,
     ),
     html.Br(),
     html.Label('Data set'),
@@ -26,6 +73,7 @@ app.layout = html.Div([
             {'label': "50 particle gun (fineCalo)", 'value': "Gun50Part_CHEPDef_fineCalo_treeMerger_nano.root"},
             {'label' : '50 particle gun (fineCalo=Off)', 'value' : "Gun50Part_CHEPDef_fineCalo_treeMerger_nano.root"},
             {'label' : 'TTbar (fineCalo)', 'value' : "TTbar_fineCalo_nano.root"},
+            {'label': 'Merging (fineCalo) Default','value':"Gun50Part_CHEPDef_fineCalo_nano_default.root"}
         ],
         value=default_dataset_
     ),
@@ -104,36 +152,30 @@ app.layout = html.Div([
     [Input("nHitFilter", "value")],
     [Input("dataset", "value")],
 )
+
+
 def draw_figure(hitTypes, detectors, colormode, pcolormode, particles, simclusters, event, nHitFilter, dataset):
-    if not dataset:
-        dataset = default_dataset_
-    if not event:
-        event = 0
-    # Merged by dR off for now
-    #plotter.setSimClusters(["SimCluster", "MergedSimCluster", "MergedByDRSimCluster"])
-    plotter = globalplotter
-    plotter.setSimClusters(["SimCluster", "MergedSimCluster", "MergedByDRSimCluster"])
-    plotter.setSimClusterHitFilter(nHitFilter if nHitFilter else 0)
-    plotter.setHits(hitTypes)
-    if event != plotter.getEvent() or dataset not in plotter.getDataset():
-        plotter.setEvent(event)
-        plotter.setDataset(f"{ntuple_path}/{dataset}")
-        plotter.setReload()
-    plotter.setDetectors(detectors)
-    plotter.setParticles(particles if particles != "None" else None)
-    globalplotter.loadDataNano()
+    return draw_plots(hitTypes, detectors, colormode, pcolormode, particles, simclusters, event, nHitFilter, dataset)
 
-    data = plotter.drawAllObjects(colormode, pcolormode, simclusters)
-    return {
-        # For now never reset the camera
-        'layout' : plotter.makeLayout('alwaystrue'),
-        'data' : data,
-    }
-
-dataset = default_dataset_
-ntuple_path = os.path.expanduser("~/cernbox/ML4Reco/Ntuples")
-print("Set plotter")
-globalplotter = HitsAndTracksPlotter(f"{ntuple_path}/{dataset}")
 
 if __name__ == '__main__':
-	app.run_server(debug=True, port=3389, host='0.0.0.0')
+   args = parseArgs()
+   if args.mode == "interactive":
+	   app.run_server(debug=True, port=3389, host='0.0.0.0')
+   elif args.mode == 'output':
+      static_plot_opts = {'hitTypes':['RecHitHGC'],
+                   'detectors':[],
+                   'colormode':'CaloPartIdx',
+                   'pcolormode':'index', 
+                   'particles':'CaloPart',
+                   'simclusters':'MergedSimCluster',
+                   'event':args.event,
+                   'nHitFilter':20, 
+                   'dataset':args.dataset}
+      fig = go.Figure(draw_plots(static_plot_opts['hitTypes'], static_plot_opts['detectors'], static_plot_opts['colormode'], static_plot_opts['pcolormode'], static_plot_opts['particles'], static_plot_opts['simclusters'], static_plot_opts['event'], static_plot_opts['nHitFilter'], static_plot_opts['dataset']))
+      if not os.path.exists(args.outDir):
+          os.makedirs(args.outDir) 
+      outputFileName = args.outDir+'/' + args.outputFile+'_event_'+str(args.event)+'.html'
+      fig.write_html(outputFileName)
+   else:
+      raise ValueError("Must select mode 'interactive' or 'output'")

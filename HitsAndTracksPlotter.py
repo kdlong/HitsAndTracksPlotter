@@ -195,12 +195,18 @@ class HitsAndTracksPlotter(object):
             pids = pids[filt]
             color = color[filt]
 
+        #Would like to add the merged simCluster index to Hit print info
+        if ('RecHitHGC' in label) : 
+            df['recHitSimClusIdx'] = df[label+'_BestMergedSimClusterIdx']
+        else : df['recHitSimClusIdx'] = 0
+
         return go.Scatter3d(x=x, y=y, z=z,
                     mode='markers', 
                     marker=dict(line=dict(width=0), size=self.hitSize(label), 
                         color=color, 
                     ),
-                    text=["SimTrack pdgId: %i<br>" % pid for pid in pids],
+                    #text=["SimTrack pdgId: %i<br>" % pid for pid in pids],
+                    text=["SimTrack pdgId: %i<br>Merged Idx: %i" % (pid,idx) for (pid,idx) in zip(pids,df['recHitSimClusIdx'])],
                     hovertemplate="x: %{y:0.2f}<br>y: %{z:0.2f}<br>z: %{x:0.2f}<br>%{text}<br>",
                     name=label, 
         )
