@@ -25,6 +25,7 @@ class HitsAndTracksPlotter(object):
         self.scHitFilter = 0
         self.rtfile = rtfile
         self.xIsZ = True
+        self.endcap = 'all'
         self.hitCommonBranches = ["x", "y", "z", "energy",]
         self.hitBranches = {"SimHitHGCEE" : self.hitCommonBranches + ["SimClusterIdx"],
                 "SimHitHGCHEF" : self.hitCommonBranches + ["SimClusterIdx"],
@@ -49,10 +50,11 @@ class HitsAndTracksPlotter(object):
         cmap = matplotlib.cm.get_cmap('tab20b')    
         # For a small number of clusters, make them pretty
         self.all_colors = [matplotlib.colors.rgb2hex(cmap(i)) for i in range(cmap.N)]
+        random.shuffle(self.all_colors)
         # For a large number fall back to brute force
         self.all_colors.extend(colors_)
         # Set the preferred colors for specific pdgIds
-        self.pdgIdsMap = {1 : "#c8cbcc", 111 : "red", 211 : 'blue', 11 : 'green', 13 : 'orange', 
+        self.pdgIdsMap = {111 : "red", 211 : 'blue', 11 : 'green', 13 : 'orange', 
                 # kaons
                 311 : "purple", 321 : "purple", 130 : "darkblue", 310 : "darkblue",
                 22 : "lightblue", 2112 : "pink", 2212 : "darkred",
@@ -164,7 +166,7 @@ class HitsAndTracksPlotter(object):
         if "HGC" not in hitlabel:
             return hitdf[hitlabel+"_pdgId"]
         scIdx = self.simClusterIdx(hitlabel)
-        return scdf["SimCluster_pdgId"].to_numpy()[scIdx] if scdf is not None else [-1]
+        return scdf["SimCluster_pdgId"].to_numpy()[scIdx] if scdf is not None else np.full(len(scIdx), -1)
 
     def caloPartIdx(self, hitlabel):
         hitdf = self.data["hits"][hitlabel]
@@ -185,15 +187,19 @@ class HitsAndTracksPlotter(object):
         # Should recycle this better
         pids = self.hitPdgIds(label)
 
-        # This was just to select some clusters for printing
-        if "RecHit" in label and False:
-            caloidx = self.caloPartIdx(label)
-            #filt = (caloidx == 18) | (caloidx == 34) | (caloidx == 33) | (caloidx == 46) | (caloidx == 35)
-            x = x[filt]
-            y = y[filt]
-            z = z[filt]
-            pids = pids[filt]
-            color = color[filt]
+        # Just to select a few clusters
+        #filt = (caloidx == 18) | (caloidx == 34) | (caloidx == 33) | (caloidx == 46) | (caloidx == 35)
+        filt = np.ones(len(x), dtype='bool')
+        print(filt)
+        if self.endcap == '+':
+            filt = z > 0
+        elif self.endcap == '-':
+            filt = z < 0
+        x = x[filt]
+        y = y[filt]
+        z = z[filt]
+        pids = pids[filt]
+        color = color[filt]
 
         #Would like to add the merged simCluster index to Hit print info
         if ('RecHitHGC' in label) : 
@@ -212,9 +218,11 @@ class HitsAndTracksPlotter(object):
         )
 
     def hitSize(self, label):
-        energy = self.data["hits"][label][label+'_energy']
-        scale = 5/np.average(energy)
-        maxsize = 6
+        df = self.data["hits"][label]
+        energy = df[label+'_energy']
+        sclabel = label+("_SimClusterIdx" if "RecHit" not in label else "_BestSimClusterIdx")
+        scale = 8/np.average(energy[df[sclabel] != -1])
+        maxsize = 10
         loge = np.log(energy*scale)
         return [max(0, min(x, maxsize)) for x in loge]
     
@@ -343,14 +351,12 @@ class HitsAndTracksPlotter(object):
         return np.array([self.mapColor(i) for i in vals])
 
     def mapColor(self, i):
-        i = int(i)
+        if i == -1:
+            return "#c8cbcc"
+
+        i = int(i) % len(self.all_colors)
         if abs(i) in self.pdgIdsMap:
             return self.pdgIdsMap[abs(i)]
-        if i < 0:
-            return "#c8cbcc"
-        if i >= len(self.all_colors):
-            i = np.random.randint(0, len(self.all_colors))
-        # Avoid too "smooth" of a transition for close by values
         return self.all_colors[i]
 
     def makeLayout(self, uirev):

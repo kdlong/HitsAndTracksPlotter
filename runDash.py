@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
@@ -8,28 +10,25 @@ from HitsAndTracksPlotter import HitsAndTracksPlotter
 import os
 import argparse
 
-
+hit_options_ = ["RecHitHGC", "SimHitMuonCSC", "SimHitPixelECLowTof", "SimHitPixelLowTof",
+                    "SimHitHGCEE", "SimHitHGCHEF", "SimHitHGCHEB", ]
+#default_dataset_ = "Gun50Part_CHEPDef_fineCalo_noProp_nano.root"
+default_dataset_ = "Gun2Tau/1_nanoML.root"
+dataset = default_dataset_
+ntuple_path = os.path.expanduser("~/cernbox/ML4Reco/Ntuples")
+globalplotter = HitsAndTracksPlotter(f"{ntuple_path}/{dataset}")
 
 def parseArgs():
     parser = argparse.ArgumentParser()
     parsers = parser.add_subparsers(dest='mode')
     interactive = parsers.add_parser("interactive", help="Launch and interactive dash session")
     output = parsers.add_parser("output", help="Produce plots as output (not interactive)")
-    output.add_argument("-d", "--dataset", default="Gun50Part_CHEPDef_fineCalo_nano_default.root", type=str, help="Input file")
+    output.add_argument("-d", "--dataset", default=default_dataset_, type=str, help="Input file")
     output.add_argument("-e", "--event", default=1, type=int, help="Event number to show")
     output.add_argument("-o", "--outputFile", default="event_display", type=str, help="Output file")
     output.add_argument("--outDir", default="plots/", type=str, help="Output plots directory")
     return parser.parse_args()
  
-
-hit_options_ = ["RecHitHGC", "SimHitMuonCSC", "SimHitPixelECLowTof", "SimHitPixelLowTof",
-                    "SimHitHGCEE", "SimHitHGCHEF", "SimHitHGCHEB", ]
-default_dataset_ = "Gun50Part_CHEPDef_fineCalo_nano_default.root"
-dataset = default_dataset_
-ntuple_path = os.path.expanduser("Ntuples/merging_thresholds/")
-print("Set plotter")
-globalplotter = HitsAndTracksPlotter(f"{ntuple_path}/{dataset}")
-
 
 def draw_plots(hitTypes, detectors, colormode, pcolormode, particles, simclusters, event, nHitFilter, dataset):
     if not dataset:
