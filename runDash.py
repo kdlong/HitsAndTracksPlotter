@@ -13,9 +13,10 @@ import argparse
 hit_options_ = ["RecHitHGC", "SimHitMuonCSC", "SimHitPixelECLowTof", "SimHitPixelLowTof",
                     "SimHitHGCEE", "SimHitHGCHEF", "SimHitHGCHEB", ]
 #default_dataset_ = "Gun50Part_CHEPDef_fineCalo_noProp_nano.root"
-default_dataset_ = "Gun2Tau/1_nanoML.root"
+default_dataset_ = "Gun2Tau_nano.root"
 dataset = default_dataset_
-ntuple_path = os.path.expanduser("~/cernbox/ML4Reco/Ntuples")
+base_path = os.path.expanduser("~/cernbox") if not "cern" in os.environ["HOSTNAME"] else "/eos/user/k/kelong"
+ntuple_path = f"{base_path}/ML4Reco/Ntuples"
 globalplotter = HitsAndTracksPlotter(f"{ntuple_path}/{dataset}")
 
 def parseArgs():
@@ -95,7 +96,7 @@ app.layout = html.Div([
     dcc.Dropdown(
         id='particles',
         options=[{'label': i, 'value': i} for i in 
-            ["GenPart", "TrackingPart", "PFCand", "CaloPart", "None"]],
+            ["GenPart", "TrackingPart", "PFCand", "CaloPart", "PFTruthPart", "None"]],
         value="CaloPart"
     ),
     html.Label('Hit color mode'),

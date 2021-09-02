@@ -333,7 +333,7 @@ class HitsAndTracksPlotter(object):
         for i, (v,m,e,q,pid) in enumerate(zip(vtx, mom, end, charge, ids)):
             pt,eta,phi = ptEtaPhi[i]
             # TODO: Should be configurable
-            if pt < 3:# or (label == "CaloPart" and i not in [18,34, 46,33,35]):
+            if pt < 1:# or (label == "CaloPart" and i not in [18,34, 46,33,35]):
                 continue
             points = self.trajectory(v, m, e, q) 
             colors = self.mapColors([i if colortype == "Index" else pid])

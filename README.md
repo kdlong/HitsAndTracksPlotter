@@ -8,6 +8,8 @@ The code is a restructured version of [this repository](https://github.com/kdlon
 # Setup
 Setup the necessary pip environment with
 ```bash
+python3 -m venv env
+. ./env/bin/activate
 pip install -r requirements.txt
 ```
 Then ```. ./env/bin/activate``` before running (needed every time you open a new session)
