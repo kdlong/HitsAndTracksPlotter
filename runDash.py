@@ -9,13 +9,14 @@ import uproot
 from HitsAndTracksPlotter import HitsAndTracksPlotter
 import os
 import argparse
+import socket
 
 hit_options_ = ["RecHitHGC", "SimHitMuonCSC", "SimHitPixelECLowTof", "SimHitPixelLowTof",
                     "SimHitHGCEE", "SimHitHGCHEF", "SimHitHGCHEB", ]
 #default_dataset_ = "Gun50Part_CHEPDef_fineCalo_noProp_nano.root"
 default_dataset_ = "Gun2Tau_nano.root"
 dataset = default_dataset_
-base_path = os.path.expanduser("~/cernbox") if not "cern" in os.environ["HOSTNAME"] else "/eos/user/k/kelong"
+base_path = os.path.expanduser("~/cernbox") if "macbook" in socket.gethostname() else "/eos/user/k/kelong"
 ntuple_path = f"{base_path}/ML4Reco/Ntuples"
 globalplotter = HitsAndTracksPlotter(f"{ntuple_path}/{dataset}")
 
@@ -103,7 +104,7 @@ app.layout = html.Div([
     dcc.Dropdown(
         id='colormode',
         options=[{'label': i, 'value': i} for i in ["MergedSimClusterIdx", "MergedByDRSimClusterIdx", 
-            "SimClusterIdx", "CaloPartIdx", "pdgId", "PFCandIdx", "PFTICLCandIdx"]],
+            "SimClusterIdx", "CaloPartIdx", "pdgId", "PFCandIdx", "PFTruthPartIdx", "PFTICLCandIdx"]],
         value='CaloPartIdx'
     ),
     html.Label('Particle color mode'),

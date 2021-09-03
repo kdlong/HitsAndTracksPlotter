@@ -35,7 +35,7 @@ class HitsAndTracksPlotter(object):
                 "SimHitPixelLowTof" : self.hitCommonBranches + ["pdgId"],
                 "RecHitHGC" : self.hitCommonBranches + \
                         ["PFCandIdx", "BestSimClusterIdx", "BestMergedSimClusterIdx", ]
-                        + ["BestMergedByDRSimClusterIdx"],
+                        + ["BestMergedByDRSimClusterIdx", "BestPFTruthPartIdx"],
                         }
         self.scBranches = ["impactPoint_x", "impactPoint_y", "impactPoint_z", "pdgId", 
                 "nHits", "boundaryEnergy", "isTrainable", "onHGCFrontFace"]
@@ -202,19 +202,19 @@ class HitsAndTracksPlotter(object):
         color = color[filt]
 
         #Would like to add the merged simCluster index to Hit print info
+        text = ["SimTrack pdgId: %i" % pid for pid in pids]
         if ('RecHitHGC' in label) : 
-            df['recHitSimClusIdx'] = df[label+'_BestMergedSimClusterIdx']
-        else : df['recHitSimClusIdx'] = 0
+            text = ["%s<br>PFTruthPartIdx: %i<br>MergedSimClusterIdx: %i" % (t, p, m) \
+                    for t,p,m in zip(text, df[label+"_BestPFTruthPartIdx"],df[label+'_BestMergedSimClusterIdx'])]
 
         return go.Scatter3d(x=x, y=y, z=z,
                     mode='markers', 
                     marker=dict(line=dict(width=0), size=self.hitSize(label), 
                         color=color, 
                     ),
-                    #text=["SimTrack pdgId: %i<br>" % pid for pid in pids],
-                    text=["SimTrack pdgId: %i<br>Merged Idx: %i" % (pid,idx) for (pid,idx) in zip(pids,df['recHitSimClusIdx'])],
                     hovertemplate="x: %{y:0.2f}<br>y: %{z:0.2f}<br>z: %{x:0.2f}<br>%{text}<br>",
                     name=label, 
+                    text=text,
         )
 
     def hitSize(self, label):
