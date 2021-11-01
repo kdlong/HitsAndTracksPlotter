@@ -42,10 +42,13 @@ class HitsAndTracksPlotter(object):
         self.scAddBranches = {"SimCluster" : ["MergedSimClusterIdx", "CaloPartIdx", "recEnergy"],
                 "MergedSimCluster" : ["recEnergy"],
                 }
-        self.candBranchesNoVtx = ["pt", "eta", "phi", "mass", "charge", "pdgId"]
-        self.candBranches = self.candBranchesNoVtx + ["Vtx_x", "Vtx_y", "Vtx_z"]
+        candBaseBranches = ["pt", "eta", "phi", "charge", ]
+        vtx = ["Vtx_x", "Vtx_y", "Vtx_z"]
+        self.trackBranches = candBaseBranches+vtx+["PFTruthPartIdx"]
+        self.candBranchesNoVtx = candBaseBranches + ["pdgId"]
+        self.candBranches = self.candBranchesNoVtx + vtx
         # Objects that have their own vertices
-        self.vertices = ["TrackingPart", "PFCand", ]
+        self.vertices = ["TrackingPart", "PFCand", "Track",]
 
         cmap = matplotlib.cm.get_cmap('tab20b')    
         # For a small number of clusters, make them pretty
@@ -118,6 +121,8 @@ class HitsAndTracksPlotter(object):
 
         if self.particles:
             branches = self.candBranches if self.particles in self.vertices else self.candBranchesNoVtx
+            if self.particles == "Track":
+                branches = self.trackBranches
             self.data["particles"] = {self.particles : self.makeDataFrame(self.particles, branches, "particles")}
         if self.particles:
             self.data["GenVtx"] = self.makeDataFrame("GenVtx", ["x", "y", "z"], "GenVtx")
@@ -309,7 +314,7 @@ class HitsAndTracksPlotter(object):
     def trajectoryEndPoint(self):
         label = self.particles
         df = self.data["particles"][label]
-        ids = df[label+"_pdgId"]
+        ids = df[label+"_pdgId"] if label != "Track" else np.zeros_like(df[label+"_eta"])
         eta = df[label+"_eta"]
         end = np.array([1000 if abs(i) == 13 else 350 for i in ids])
         end = end*np.sign(eta)
@@ -325,23 +330,29 @@ class HitsAndTracksPlotter(object):
         mom = self.momentumVectors()
         vtx = self.makeVertices()
         charge = self.data["particles"][label][label+"_charge"]
-        ids = self.data["particles"][label][label+"_pdgId"]
+        ids = self.data["particles"][label][label+"_pdgId"] if label != "Track" else np.zeros_like(charge)
+        if colortype == "PFTruthPartIdx":
+            ids = self.data["particles"][label][label+"_PFTruthPartIdx"]
         end = self.trajectoryEndPoint()
         # Should make this array based
         ptEtaPhi = self.PtEtaPhiVectors()
         traces = []
-        for i, (v,m,e,q,pid) in enumerate(zip(vtx, mom, end, charge, ids)):
+        for i, (v,m,e,q) in enumerate(zip(vtx, mom, end, charge)):
             pt,eta,phi = ptEtaPhi[i]
+            pid = ids[i]
             # TODO: Should be configurable
             if pt < 1:# or (label == "CaloPart" and i not in [18,34, 46,33,35]):
                 continue
             points = self.trajectory(v, m, e, q) 
             colors = self.mapColors([i if colortype == "Index" else pid])
+
+            idtext = 'pdgId' if colortype != 'PFTruthPartIdx' else "PFTruthPartIdx"
+            text = [f'{idtext}: {pid}<br>p<sub>T</sub>, η, phi:  ({pt:0.2f} GeV, {eta:0.2f}, {phi:0.2f})' 
+                            for p in points]
             traces.append(go.Scatter3d(x=points[:,2], y=points[:,0], z=points[:,1],
                     mode='lines', name=f"{label}Idx{i} (pdgId={pid})", 
                     hovertemplate="x: %{y}<br>y: %{z}<br>z: %{x}<br>%{text}<br>",
-                    text=[f'pdgId: {pid}<br>p<sub>T</sub>, η, phi:  ({pt:0.2f} GeV, {eta:0.2f}, {phi:0.2f})' 
-                            for p in points],
+                    text=text,
                     line=dict(color=colors[0] if len(colors) == 1 else colors)
                 )
             )

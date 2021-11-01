@@ -13,8 +13,12 @@ import socket
 
 hit_options_ = ["RecHitHGC", "SimHitMuonCSC", "SimHitPixelECLowTof", "SimHitPixelLowTof",
                     "SimHitHGCEE", "SimHitHGCHEF", "SimHitHGCHEB", ]
+
+particle_options_ = ["GenPart", "CaloPart", "PFTruthPart", "Track", "TrackingPart", "PFCand", "None", ]
+particle_coptions_ = ["Index", "PFTruthPartIdx", "pdgId",]
 #default_dataset_ = "Gun50Part_CHEPDef_fineCalo_noProp_nano.root"
-default_dataset_ = "Gun2Tau_nano.root"
+#default_dataset_ = "Gun2Tau_nano.root"
+default_dataset_ = "temp_nano.root"
 dataset = default_dataset_
 base_path = os.path.expanduser("~/cernbox") if "macbook" in socket.gethostname() else "/eos/user/k/kelong"
 ntuple_path = f"{base_path}/ML4Reco/Ntuples"
@@ -29,6 +33,8 @@ def parseArgs():
     output.add_argument("-e", "--event", default=1, type=int, help="Event number to show")
     output.add_argument("-o", "--outputFile", default="event_display", type=str, help="Output file")
     output.add_argument("--outDir", default="plots/", type=str, help="Output plots directory")
+    output.add_argument("-p", "--particles", default="CaloPart", type=str, choices=particle_options_)
+    output.add_argument("-c", "--particleColor", default="Index", type=str, choices=particle_coptions_)
     return parser.parse_args()
  
 
@@ -96,9 +102,9 @@ app.layout = html.Div([
     html.Label('Particle trajectories'),
     dcc.Dropdown(
         id='particles',
-        options=[{'label': i, 'value': i} for i in 
-            ["GenPart", "TrackingPart", "PFCand", "CaloPart", "PFTruthPart", "None"]],
-        value="CaloPart"
+        options=[{'label': i, 'value': i} for i in particle_options_],
+        #value="CaloPart"
+        value="Track"
     ),
     html.Label('Hit color mode'),
     dcc.Dropdown(
@@ -110,7 +116,7 @@ app.layout = html.Div([
     html.Label('Particle color mode'),
     dcc.Dropdown(
         id='pcolormode',
-        options=[{'label': i, 'value': i} for i in ["Index", "pdgId",]],
+        options=[{'label': i, 'value': i} for i in particle_coptions_],
         value='Index'
     ),
     html.Label('Show SimClusters'),
@@ -166,9 +172,9 @@ if __name__ == '__main__':
    elif args.mode == 'output':
       static_plot_opts = {'hitTypes':['RecHitHGC'],
                    'detectors':[],
-                   'colormode':'CaloPartIdx',
-                   'pcolormode':'index', 
-                   'particles':'CaloPart',
+                   'colormode': "CaloPartIdx",
+                   'pcolormode': args.particleColor, 
+                   'particles': args.particles,
                    'simclusters':'MergedSimCluster',
                    'event':args.event,
                    'nHitFilter':20, 
