@@ -14,11 +14,14 @@ import socket
 hit_options_ = ["RecHitHGC", "SimHitMuonCSC", "SimHitPixelECLowTof", "SimHitPixelLowTof",
                     "SimHitHGCEE", "SimHitHGCHEF", "SimHitHGCHEB", ]
 
-particle_options_ = ["GenPart", "CaloPart", "PFTruthPart", "Track", "TrackingPart", "PFCand", "None", ]
+particle_options_ = ["GenPart", "CaloPart", "PFTruthPart", "Track", "TrackDisp", "TrackingPart", "PFCand", "None", ]
 particle_coptions_ = ["Index", "PFTruthPartIdx", "pdgId",]
+simcluster_options_ = ["SimCluster", "MergedSimCluster", "MergedByDRSimCluster"]
+hit_colors_ = [x+"Idx" for x in simcluster_options_]+\
+            ["SimClusterIdx", "CaloPartIdx", "pdgId", "PFCandIdx", "PFTruthPartIdx", "PFTICLCandIdx"]
 #default_dataset_ = "Gun50Part_CHEPDef_fineCalo_noProp_nano.root"
-#default_dataset_ = "Gun2Tau_nano.root"
-default_dataset_ = "temp_nano.root"
+default_dataset_ = "Gun2Tau_nano.root"
+default_dataset_ = "63_nanoML.root"
 dataset = default_dataset_
 base_path = os.path.expanduser("~/cernbox") if "macbook" in socket.gethostname() else "/eos/user/k/kelong"
 ntuple_path = f"{base_path}/ML4Reco/Ntuples"
@@ -34,6 +37,8 @@ def parseArgs():
     output.add_argument("-o", "--outputFile", default="event_display", type=str, help="Output file")
     output.add_argument("--outDir", default="plots/", type=str, help="Output plots directory")
     output.add_argument("-p", "--particles", default="CaloPart", type=str, choices=particle_options_)
+    output.add_argument("-s", "--simClusters", default="None", type=str, choices=simcluster_options_)
+    output.add_argument("-hc", "--hitColor", default="pdgId", type=str, choices=hit_colors_)
     output.add_argument("-c", "--particleColor", default="Index", type=str, choices=particle_coptions_)
     return parser.parse_args()
  
@@ -46,7 +51,7 @@ def draw_plots(hitTypes, detectors, colormode, pcolormode, particles, simcluster
     # Merged by dR off for now
     #plotter.setSimClusters(["SimCluster", "MergedSimCluster", "MergedByDRSimCluster"])
     plotter = globalplotter
-    plotter.setSimClusters(["SimCluster", "MergedSimCluster", "MergedByDRSimCluster"])
+    plotter.setSimClusters(simcluster_options_)
     plotter.setSimClusterHitFilter(nHitFilter if nHitFilter else 0)
     plotter.setHits(hitTypes)
     if event != plotter.getEvent() or dataset not in plotter.getDataset():
@@ -70,7 +75,7 @@ app.layout = html.Div([
     dcc.Graph(id="scatter-plot", style={'width': '90%', 'height': '60%'}),
     dcc.Input(
         id="event", type="number", placeholder="event",
-        min=0, max=17, step=1,
+        min=0, max=100, step=1,
     ),
     html.Br(),
     html.Label('Data set'),
@@ -109,8 +114,7 @@ app.layout = html.Div([
     html.Label('Hit color mode'),
     dcc.Dropdown(
         id='colormode',
-        options=[{'label': i, 'value': i} for i in ["MergedSimClusterIdx", "MergedByDRSimClusterIdx", 
-            "SimClusterIdx", "CaloPartIdx", "pdgId", "PFCandIdx", "PFTruthPartIdx", "PFTICLCandIdx"]],
+        options=[{'label': i, 'value': i} for i in hit_colors_],
         value='CaloPartIdx'
     ),
     html.Label('Particle color mode'),
@@ -122,10 +126,7 @@ app.layout = html.Div([
     html.Label('Show SimClusters'),
     dcc.Dropdown(
         id='simclusters',
-        options=[{'label': "Default", 'value': "SimCluster"}, 
-            {'label' : "Merged", "value" : "MergedSimCluster"},
-            {'label' : "MergedByDR", "value" : "MergedByDRSimCluster"},
-            {'label' : "None", "value" : "None"}],
+        options=[ {'label' : i, 'value' : i} for i in simcluster_options_],
         value="None"
     ),
     html.Br(),
@@ -172,10 +173,10 @@ if __name__ == '__main__':
    elif args.mode == 'output':
       static_plot_opts = {'hitTypes':['RecHitHGC'],
                    'detectors':[],
-                   'colormode': "CaloPartIdx",
+                   'colormode': args.hitColor,
                    'pcolormode': args.particleColor, 
                    'particles': args.particles,
-                   'simclusters':'MergedSimCluster',
+                   'simclusters': args.simClusters,
                    'event':args.event,
                    'nHitFilter':20, 
                    'dataset':args.dataset}
