@@ -35,7 +35,7 @@ class HitsAndTracksPlotter(object):
                 "SimHitPixelLowTof" : self.hitCommonBranches + ["pdgId"],
                 "RecHitHGC" : self.hitCommonBranches + \
                         ["PFCandIdx", "BestSimClusterIdx", "BestMergedSimClusterIdx", ]
-                        #+ ["BestMergedByDRSimClusterIdx", "BestPFTruthPartIdx"],
+                        + ["BestMergedByDRSimClusterIdx", "BestPFTruthPartIdx"],
                         }
         self.scBranches = ["impactPoint_x", "impactPoint_y", "impactPoint_z", "pdgId", 
                 "nHits", "boundaryEnergy", "isTrainable", "onHGCFrontFace"]
@@ -44,7 +44,7 @@ class HitsAndTracksPlotter(object):
                 }
         self.candBaseBranches = ["pt", "eta", "phi", "charge", ]
         vtx = ["Vtx_x", "Vtx_y", "Vtx_z"]
-        self.trackBranches = self.candBaseBranches+vtx#+["PFTruthPartIdx"]
+        self.trackBranches = self.candBaseBranches+vtx+["PFTruthPartIdx"]
         self.candBranchesNoVtx = self.candBaseBranches + ["pdgId"]
         self.candBranches = self.candBranchesNoVtx + vtx
         # Objects that have their own vertices
@@ -106,7 +106,8 @@ class HitsAndTracksPlotter(object):
         f = uproot.open(self.rtfile)
         events = f["Events"]
         columns = ["_".join([label, b]) for b in branches]
-        df = events.arrays(columns, entry_start=self.event, entry_stop=self.event+1, library="pd")
+        active_columns = filter(lambda x: x in events, columns)
+        df = events.arrays(active_columns, entry_start=self.event, entry_stop=self.event+1, library="pd")
         if isinstance(df.index, pd.MultiIndex):
             df = df.xs(self.event, level="entry")
         return df 

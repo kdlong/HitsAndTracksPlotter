@@ -19,9 +19,8 @@ particle_coptions_ = ["Index", "PFTruthPartIdx", "pdgId",]
 simcluster_options_ = ["SimCluster", "MergedSimCluster", "MergedByDRSimCluster"]
 hit_colors_ = [x+"Idx" for x in simcluster_options_]+\
             ["SimClusterIdx", "CaloPartIdx", "pdgId", "PFCandIdx", "PFTruthPartIdx", "PFTICLCandIdx"]
-#default_dataset_ = "Gun50Part_CHEPDef_fineCalo_noProp_nano.root"
-default_dataset_ = "Gun2Tau_nano.root"
-default_dataset_ = "63_nanoML.root"
+default_dataset_ = "partGun10_noPU_nano.root"
+#default_dataset_ = "partGun10_pileup100_nano.root"
 dataset = default_dataset_
 base_path = os.path.expanduser("~/cernbox") if "macbook" in socket.gethostname() else "/eos/user/k/kelong"
 ntuple_path = f"{base_path}/ML4Reco/Ntuples"
@@ -82,8 +81,8 @@ app.layout = html.Div([
     dcc.Dropdown(
         id='dataset',
         options=[
-            {'label': "50 particle gun (fineCalo)", 'value': "Gun50Part_CHEPDef_fineCalo_treeMerger_nano.root"},
-            {'label' : '50 particle gun (fineCalo=Off)', 'value' : "Gun50Part_CHEPDef_fineCalo_treeMerger_nano.root"},
+            {'label': "10 particle gun (no PU)", 'value': "partGun10_noPU_nano.root"},
+            {'label' : '10 particle gun (w/ PU)', 'value' : "partGun10_pileup100_nano.root"},
             {'label' : 'TTbar (fineCalo)', 'value' : "TTbar_fineCalo_nano.root"},
             {'label': 'Merging (fineCalo) Default','value':"Gun50Part_CHEPDef_fineCalo_nano_default.root"}
         ],
