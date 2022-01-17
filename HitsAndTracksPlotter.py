@@ -18,13 +18,16 @@ class HitsAndTracksPlotter(object):
         self.reload = True
         self.data = {}
         self.hits = []
+        self.tree = None
         self.simClusters = []
         self.detectors = []
-        self.particles = ""
+        self.particles = []
         self.event = 0
         self.scHitFilter = 0
         self.rtfile = rtfile
         self.xIsZ = True
+        self.trackPtCut = 1.
+        self.removePU = True
         self.endcap = 'all'
         self.hitCommonBranches = ["x", "y", "z", "energy",]
         self.hitBranches = {"SimHitHGCEE" : self.hitCommonBranches + ["SimClusterIdx"],
@@ -38,15 +41,21 @@ class HitsAndTracksPlotter(object):
                         + ["BestMergedByDRSimClusterIdx", "BestPFTruthPartIdx"],
                         }
         self.scBranches = ["impactPoint_x", "impactPoint_y", "impactPoint_z", "pdgId", 
-                "nHits", "boundaryEnergy", "isTrainable", "onHGCFrontFace"]
+                "nHits", "boundaryEnergy", "isTrainable", "onHGCFrontFace", "eventId", "bunchCrossing"]
         self.scAddBranches = {"SimCluster" : ["MergedSimClusterIdx", "CaloPartIdx", "recEnergy"],
                 "MergedSimCluster" : ["recEnergy"],
                 }
-        self.candBaseBranches = ["pt", "eta", "phi", "charge", ]
+        candBaseBranches = ["pt", "eta", "phi", "charge", ]
+        candBranchesNoVtx = candBaseBranches + ["pdgId"]
         vtx = ["Vtx_x", "Vtx_y", "Vtx_z"]
-        self.trackBranches = self.candBaseBranches+vtx+["PFTruthPartIdx"]
-        self.candBranchesNoVtx = self.candBaseBranches + ["pdgId"]
-        self.candBranches = self.candBranchesNoVtx + vtx
+        candBranches = candBranchesNoVtx + vtx
+        trackBranches = candBranches+["PFTruthPartIdx"]
+        self.particleBranches = {"Track" : trackBranches,
+            "GenPart" : candBranchesNoVtx,
+            "TrackingPart" : trackBranches+["pdgId"],
+        }
+        self.particleBranches["CaloPart"] = self.particleBranches["GenPart"]
+        self.particleBranches["PFTruthPart"] = self.particleBranches["TrackingPart"]
         # Objects that have their own vertices
         self.vertices = ["TrackingPart", "PFCand", "Track", "TrackDisp"]
 
@@ -68,6 +77,12 @@ class HitsAndTracksPlotter(object):
 
     def setHits(self, hitTypes):
         self.hits = hitTypes
+
+    def setTrackPtCut(self, trackPtCut):
+        self.trackPtCut = trackPtCut
+
+    def setPileupAsNoise(self, pileupAsNoise):
+        self.removePU = pileupAsNoise
 
     def setXIsZ(self, xIsZ):
         self.xIsZ = xIsZ
@@ -103,11 +118,13 @@ class HitsAndTracksPlotter(object):
         if not self.reload and (label in self.data or (datatype in self.data and label in self.data[datatype])):
             return self.data[label] if label in self.data else self.data[datatype][label]
 
-        f = uproot.open(self.rtfile)
-        events = f["Events"]
+        if not self.tree:
+            f = uproot.open(self.rtfile)
+            self.tree = f["Events"]
         columns = ["_".join([label, b]) for b in branches]
-        active_columns = filter(lambda x: x in events, columns)
-        df = events.arrays(active_columns, entry_start=self.event, entry_stop=self.event+1, library="pd")
+        columns.append("event")
+        active_columns = filter(lambda x: x in self.tree, columns)
+        df = self.tree.arrays(active_columns, entry_start=self.event, entry_stop=self.event+1, library="pd")
         if isinstance(df.index, pd.MultiIndex):
             df = df.xs(self.event, level="entry")
         return df 
@@ -121,11 +138,7 @@ class HitsAndTracksPlotter(object):
             self.simClusterPos = "lastPos"
 
         if self.particles:
-            branches = self.candBranches if self.particles in self.vertices else self.candBranchesNoVtx
-            if self.particles in ["Track", "TrackDisp"]:
-                branches = self.trackBranches if "Disp" not in self.particles else self.candBaseBranches
-            self.data["particles"] = {self.particles : self.makeDataFrame(self.particles, branches, "particles")}
-        if self.particles:
+            self.data["particles"] = {p: self.makeDataFrame(p, self.particleBranches[p], "particles") for p in self.particles}
             self.data["GenVtx"] = self.makeDataFrame("GenVtx", ["x", "y", "z"], "GenVtx")
         self.reload = False
 
@@ -146,6 +159,8 @@ class HitsAndTracksPlotter(object):
             colors = hitdf[label+"_pdgId"] if label+"_pdgId" in hitdf else [-1]
         else:
             idx = self.simClusterIdx(label)
+            unmatched = idx < 0
+            idx = np.where(~unmatched, idx, 0)
             scdf = self.data["simClusters"]["SimCluster"] if "SimCluster" in self.data["simClusters"] else None
             if colortype == "SimClusterIdx":
                 colors = idx
@@ -161,8 +176,12 @@ class HitsAndTracksPlotter(object):
                 idx = colors
             else:
                 raise ValueError("Invalid hit color choice %s" % colortype)
+            if scdf is not None and self.removePU:
+                ispu = (scdf["SimCluster_eventId"][idx] != 0) | (scdf["SimCluster_bunchCrossing"][idx] != 0)
+                colors[ispu] = -1
+             
             # Take -1, not the last index for properties accessed via SimCluster
-            colors = np.where(idx >= 0, colors, -1)
+            colors = np.where(~unmatched, colors, -1)
 
         return self.mapColors(colors)
 
@@ -275,8 +294,8 @@ class HitsAndTracksPlotter(object):
 
         df = self.data["simClusters"][label]
         pos = label+"_"+self.simClusterPos
-        #if label+'_isTrainable' in df:
-        #    filt = df[label+'_isTrainable'] & df[label+'_onHGCFrontFace']
+        if label+'_isTrainable' in df:
+            filt = df[label+'_isTrainable'] & df[label+'_onHGCFrontFace']
         filt = df[label+"_nHits"] > self.scHitFilter
         df_filt = df[filt]
         
@@ -294,24 +313,21 @@ class HitsAndTracksPlotter(object):
                 )
         ]
 
-    def PtEtaPhiVectors(self):
-        label = self.particles
+    def PtEtaPhiVectors(self, label):
         df = self.data["particles"][label]
         pt = df[label+"_pt"]
         eta = df[label+"_eta"]
         phi = df[label+"_phi"]
         return np.stack((pt, eta, phi), axis=-1)
 
-    def momentumVectors(self):
-        label = self.particles
+    def momentumVectors(self, label):
         df = self.data["particles"][label]
         pt = df[label+"_pt"]
         eta = df[label+"_eta"]
         phi = df[label+"_phi"]
         return np.stack((pt*np.cos(phi), pt*np.sin(phi), pt*np.sinh(eta)), axis=-1)
 
-    def makeVertices(self):
-        label = self.particles
+    def makeVertices(self, label):
         df = self.data["particles"][label] if label in self.vertices else self.data["GenVtx"]
         vtxlabel = label+"_Vtx" if label in self.vertices else "GenVtx"
         vert = np.stack((df[vtxlabel+"_x"], df[vtxlabel+"_y"], df[vtxlabel+"_z"]), axis=-1)
@@ -319,8 +335,7 @@ class HitsAndTracksPlotter(object):
              vert = np.resize(vert, (self.data["particles"][label].shape[0], vert.shape[1])) 
         return vert
 
-    def trajectoryEndPoint(self):
-        label = self.particles
+    def trajectoryEndPoint(self, label):
         df = self.data["particles"][label]
         ids = df[label+"_pdgId"] if label+"pdgId" in df else np.zeros_like(df[label+"_eta"])
         eta = df[label+"_eta"]
@@ -331,27 +346,25 @@ class HitsAndTracksPlotter(object):
         end[filt] = decayz[filt]
         return end
 
-    def drawParticles(self, colortype):
-        label = self.particles
-        df = self.data["particles"][label]
+    def drawParticles(self, label, colortype):
         if not self.particles or "particles" not in self.data or not label in self.data["particles"]:
             return []
-        mom = self.momentumVectors()
-        vtx = self.makeVertices()
+        df = self.data["particles"][label]
+        mom = self.momentumVectors(label)
+        vtx = self.makeVertices(label)
         charge = self.data["particles"][label][label+"_charge"]
         ids = df[label+"_pdgId"] if label+"_pdgId" in df else np.zeros_like(charge)
         if colortype == "PFTruthPartIdx":
             ids = df[label+"_PFTruthPartIdx"]
-        end = self.trajectoryEndPoint()
+        end = self.trajectoryEndPoint(label)
         # Should make this array based
-        ptEtaPhi = self.PtEtaPhiVectors()
+        ptEtaPhi = self.PtEtaPhiVectors(label)
         traces = []
         for i, (v,m,e,q) in enumerate(zip(vtx, mom, end, charge)):
             pt,eta,phi = ptEtaPhi[i]
-            pid = ids[i]
-            # TODO: Should be configurable
-            if pt < 1:# or (label == "CaloPart" and i not in [18,34, 46,33,35]):
+            if pt < self.trackPtCut:
                 continue
+            pid = ids[i]
             points = self.trajectory(v, m, e, q) 
             colors = self.mapColors([i if colortype == "Index" else pid])
 
@@ -462,7 +475,10 @@ class HitsAndTracksPlotter(object):
 
     def drawAllObjects(self, colormode, pcolormode, simclusters):
         data = self.drawAllHits(colormode)
-        data.extend(self.drawParticles(pcolormode))
+        for label in self.particles:
+            # Tracking part only used for ID here
+            if not (label == "TrackingPart" and self.particles[0] != label):
+                data.extend(self.drawParticles(label, pcolormode))
         data.extend(self.drawSimClusters(simclusters))
         data.extend(self.drawDetectors())
         return data
