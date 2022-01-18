@@ -73,11 +73,6 @@ class HitsAndTracksPlotter(object):
                 311 : cmap(9), 321 : cmap(9), 130 : cmap(9), 310 : cmap(9),
                 22 : cmap(6), 2112 : cmap(11), 2212 : cmap(10),
                 }
-        #self.pdgIdsMap = {111 : "red", 211 : 'blue', 11 : 'green', 13 : 'orange',
-        #         # kaons
-        #        311 : "purple", 321 : "purple", 130 : "darkblue", 310 : "darkblue",
-        #        22 : "lightblue", 2112 : "pink", 2212 : "darkred",
-        #        }
 
     def addHits(self, hitType):
         self.hits.append(hitType)
@@ -195,7 +190,7 @@ class HitsAndTracksPlotter(object):
                 raise ValueError("Invalid hit color choice %s" % colortype)
             if scdf is not None and self.removePU:
                 ispu = (scdf["SimCluster_eventId"][idx] != 0) | (scdf["SimCluster_bunchCrossing"][idx] != 0)
-                colors[ispu] = -1
+                colors[ispu] = -2
              
             # Take -1, not the last index for properties accessed via SimCluster
             colors = np.where(~unmatched, colors, -1)
@@ -401,7 +396,7 @@ class HitsAndTracksPlotter(object):
             #color = self.mapColor(i if colortype == "Index" else pid, 0.25 if lightenPileup else 1.0)
             color = self.mapColor(i if colortype == "Index" else pid)
             if self.removePU and isPU[i]:
-               color = self.mapColor(-1, 1.)
+               color = self.mapColor(-2, 1.)
 
             idtext = 'pdgId' if colortype != 'PFTruthPartIdx' else "PFTruthPartIdx"
             text = [f'{idtext}: {pid}<br>isPU: {isPU[i]}<br>p<sub>T</sub>, η, phi:  ({pt:0.2f} GeV, {eta:0.2f}, {phi:0.2f})<br>color: {color}' 
@@ -421,6 +416,8 @@ class HitsAndTracksPlotter(object):
     def mapColor(self, i, alpha=1.):
         if i == -1:
             return "#c8cbcc" 
+        elif i == -2:
+            return "#e1eef2"
 
         if abs(i) in self.pdgIdsMap:
             c = self.pdgIdsMap[abs(i)]
@@ -487,34 +484,24 @@ class HitsAndTracksPlotter(object):
         gamma = T0[2]
         Q = -3.8*2.99792458e-3*q/np.linalg.norm(P0)
 
-        # Don't need a loop 
-        points = np.zeros(shape=(100,3))
-        for i in range(100):
-            step = s/100*i
-            theta = Q*step
-            M = M0 + gamma*(theta-math.sin(theta))*H/Q + math.sin(theta)*T0/Q + alpha*(1.-math.cos(theta))*N0/Q
-            # Don't propogate central particles forever
-            if abs(M[2]) < 400 and M[0]**2 + M[1]**2 > 150**2:
-                break
-            points[i,:] = M
+        npoints = 100
+        points = np.full((npoints,3), M0)
+        step = np.linspace(M0, s, npoints)
+        theta = Q*step
+        M = M0[np.newaxis,:] + gamma*(theta-np.sin(theta))*H[np.newaxis,:]/Q \
+                + np.sin(theta)*T0[np.newaxis,:]/Q + alpha*(1.-np.cos(theta))*N0/Q
+        outsideTracker = ((M[:,0]*M[:,0]+M[:,1]*M[:,1]) > 113*113) & (M[:,2] < 300)
+        firstOutside = np.argmax(outsideTracker) if np.count_nonzero(outsideTracker) else npoints
+        points[npoints-firstOutside:,:] = M[:firstOutside,:]
         return points
 
     def neutralTrajectory(self, initPos, initMom, endz):
         M0 = initPos
         P0 = initMom
         
-        points = np.zeros(shape=(100,3))
-        points[:,0] = np.linspace(M0[0], P0[0]/P0[2]*endz, 100)
-        points[:,1] = np.linspace(M0[1], P0[1]/P0[2]*endz, 100)
-        points[:,2] = np.linspace(M0[2], endz, 100)
-        #Definitely not the most efficient way...
-        # Surely don't need a loop here either
-        for i, point in enumerate(points):
-            if point[0]**2+point[1]**2 > 130**2:
-                break
-        filtpoints = np.zeros(shape=(i, 3))
-        filtpoints = points[:i,:]
-        return filtpoints
+        points = np.linspace(M0, (P0[0]/P0[1], P0[1]/P0[2], endz), 100)
+        offTracker = (point[:,0]*point[:,0]+point[:,1]*point[:,1]) > 113*2
+        return points[~offTracker,:]
 
     def drawAllObjects(self, colormode, pcolormode, simclusters):
         data = self.drawAllHits(colormode)
