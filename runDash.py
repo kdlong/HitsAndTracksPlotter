@@ -28,18 +28,18 @@ globalplotter = HitsAndTracksPlotter(f"{ntuple_path}/{dataset}")
 def parseArgs():
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--dataset", default=default_dataset_, type=str, help="Input file")
-    parser.add_argument("-p", "--particles", default="CaloPart", type=str, choices=particle_options_)
+    parser.add_argument("-p", "--particles", default="Track", type=str, choices=particle_options_)
     parser.add_argument("-s", "--simClusters", default="None", type=str, choices=simcluster_options_)
     parser.add_argument("-hc", "--hitColor", default="pdgId", type=str, choices=hit_colors_)
-    parser.add_argument("-tc", "--trackPtCut", default=1, type=float, help="Min pt for particles/tracks")
     parser.add_argument("-c", "--particleColor", default="Index", type=str, choices=particle_coptions_)
     parser.add_argument("-e", "--event", default=1, type=int, help="Event number to show")
-    parser.add_argument("-np", "--pileupAsNoise", action='store_true', help="Color pileup as noise")
     parsers = parser.add_subparsers(dest='mode')
     interactive = parsers.add_parser("interactive", help="Launch and interactive dash session")
     output = parsers.add_parser("output", help="Produce plots as output (not interactive)")
     output.add_argument("-o", "--outputFile", default="event_display", type=str, help="Output file")
     output.add_argument("--outDir", default="plots/", type=str, help="Output plots directory")
+    output.add_argument("-np", "--pileupAsNoise", action='store_true', help="Color pileup as noise")
+    output.add_argument("-tc", "--trackPtCut", default=1, type=float, help="Min pt for particles/tracks")
     return parser.parse_args()
  
 args = parseArgs()
@@ -62,7 +62,7 @@ def draw_plots(hitTypes, detectors, pileupAsNoise, colormode, pcolormode, partic
     plotter.setDetectors(detectors)
     plotter.setTrackPtCut(trackPtCut)
     if particles != "None":
-        plotter.setParticles([particles])
+        plotter.setParticles(particles)
     globalplotter.loadDataNano()
 
     data = plotter.drawAllObjects(colormode, pcolormode, simclusters)
@@ -125,7 +125,7 @@ app.layout = html.Div([
     dcc.Dropdown(
         id='pcolormode',
         options=[{'label': i, 'value': i} for i in particle_coptions_],
-        value='Index'
+        value=args.particleColor,
     ),
     html.Label('Show SimClusters'),
     dcc.Dropdown(

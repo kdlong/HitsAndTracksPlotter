@@ -2,12 +2,14 @@ import uproot
 import plotly.graph_objects as go
 import matplotlib.cm
 import matplotlib._color_data as mcd
+import matplotlib.colors
 import numpy as np
 import pandas as pd
 import math
 import random
+import colorsys
 random.seed(0)
-colors_ = list(mcd.XKCD_COLORS.values())
+colors_ = [matplotlib.colors.to_rgb(x) for x in mcd.XKCD_COLORS.values()]
 random.shuffle(colors_)
 
 class HitsAndTracksPlotter(object):
@@ -45,35 +47,40 @@ class HitsAndTracksPlotter(object):
         self.scAddBranches = {"SimCluster" : ["MergedSimClusterIdx", "CaloPartIdx", "recEnergy"],
                 "MergedSimCluster" : ["recEnergy"],
                 }
-        candBaseBranches = ["pt", "eta", "phi", "charge", ]
-        candBranchesNoVtx = candBaseBranches + ["pdgId"]
+        candBranchesNoVtx = ["pt", "eta", "phi", "charge", "pdgId"]
         vtx = ["Vtx_x", "Vtx_y", "Vtx_z"]
         candBranches = candBranchesNoVtx + vtx
-        trackBranches = candBranches+["PFTruthPartIdx"]
-        self.particleBranches = {"Track" : trackBranches,
+        trackBranches = candBranchesNoVtx[:-1]+vtx+["PFTruthPartIdx"]
+        puBranches = ["eventId", "bunchCrossing"]
+        self.particleBranches = {"Track" : trackBranches+["TrackingPartNumMatch"], 
+            "TrackMatch" : ["TrackingPart_MatchIdx"],
             "GenPart" : candBranchesNoVtx,
-            "TrackingPart" : trackBranches+["pdgId"],
+            "TrackingPart" : trackBranches+["pdgId"]+puBranches,
         }
-        self.particleBranches["CaloPart"] = self.particleBranches["GenPart"]
+        self.particleBranches["CaloPart"] = self.particleBranches["GenPart"]+puBranches
         self.particleBranches["PFTruthPart"] = self.particleBranches["TrackingPart"]
         # Objects that have their own vertices
         self.vertices = ["TrackingPart", "PFCand", "Track", "TrackDisp"]
 
-        cmap = matplotlib.cm.get_cmap('tab20b')    
-        # For a small number of clusters, make them pretty
-        self.all_colors = [matplotlib.colors.rgb2hex(cmap(i)) for i in range(cmap.N)]
+        cmap = matplotlib.cm.tab20
+        self.all_colors = [cmap(i) for i in range(20)]
         random.shuffle(self.all_colors)
         # For a large number fall back to brute force
         self.all_colors.extend(colors_)
         # Set the preferred colors for specific pdgIds
-        self.pdgIdsMap = {111 : "red", 211 : 'blue', 11 : 'green', 13 : 'orange', 
+        self.pdgIdsMap = {111 : cmap(18), 211 : cmap(0), 11 : cmap(4), 13 : cmap(3), 
                 # kaons
-                311 : "purple", 321 : "purple", 130 : "darkblue", 310 : "darkblue",
-                22 : "lightblue", 2112 : "pink", 2212 : "darkred",
+                311 : cmap(9), 321 : cmap(9), 130 : cmap(9), 310 : cmap(9),
+                22 : cmap(6), 2112 : cmap(11), 2212 : cmap(10),
                 }
+        #self.pdgIdsMap = {111 : "red", 211 : 'blue', 11 : 'green', 13 : 'orange',
+        #         # kaons
+        #        311 : "purple", 321 : "purple", 130 : "darkblue", 310 : "darkblue",
+        #        22 : "lightblue", 2112 : "pink", 2212 : "darkred",
+        #        }
 
-        def addHits(self, hitType):
-            self.hits.append(hitType)
+    def addHits(self, hitType):
+        self.hits.append(hitType)
 
     def setHits(self, hitTypes):
         self.hits = hitTypes
@@ -112,16 +119,24 @@ class HitsAndTracksPlotter(object):
         self.detectors = detectors
 
     def setParticles(self, particles):
-        self.particles = particles
+        if type(particles) == list or type(particles) == tuple:
+            self.particles = particles
+        elif type(particles) == str:
+            if particles in ["Track", "TrackDisp"]:
+                self.particles = [particles, "TrackingPart", "TrackMatch"]
+            else:
+                self.particles = [particles]
 
-    def makeDataFrame(self, label, branches, datatype=""):
+    def makeDataFrame(self, label, branches, datatype="", obsname=""):
+        if obsname == "":
+            obsname = label
         if not self.reload and (label in self.data or (datatype in self.data and label in self.data[datatype])):
             return self.data[label] if label in self.data else self.data[datatype][label]
 
         if not self.tree:
             f = uproot.open(self.rtfile)
             self.tree = f["Events"]
-        columns = ["_".join([label, b]) for b in branches]
+        columns = ["_".join([obsname, b]) for b in branches]
         columns.append("event")
         active_columns = filter(lambda x: x in self.tree, columns)
         df = self.tree.arrays(active_columns, entry_start=self.event, entry_stop=self.event+1, library="pd")
@@ -138,7 +153,9 @@ class HitsAndTracksPlotter(object):
             self.simClusterPos = "lastPos"
 
         if self.particles:
-            self.data["particles"] = {p: self.makeDataFrame(p, self.particleBranches[p], "particles") for p in self.particles}
+            # The replace is a bit of a hack, the TrackMatch just exists because the matching index has different size than others
+            self.data["particles"] = {p: self.makeDataFrame(p, self.particleBranches[p], "particles", 
+                                            obsname=(p if p != "TrackMatch" else "Track")) for p in self.particles}
             self.data["GenVtx"] = self.makeDataFrame("GenVtx", ["x", "y", "z"], "GenVtx")
         self.reload = False
 
@@ -215,7 +232,6 @@ class HitsAndTracksPlotter(object):
         # Just to select a few clusters
         #filt = (caloidx == 18) | (caloidx == 34) | (caloidx == 33) | (caloidx == 46) | (caloidx == 35)
         filt = np.ones(len(x), dtype='bool')
-        print(filt)
         if self.endcap == '+':
             filt = z > 0
         elif self.endcap == '-':
@@ -347,6 +363,7 @@ class HitsAndTracksPlotter(object):
         return end
 
     def drawParticles(self, label, colortype):
+        print("Drawing particles", label)
         if not self.particles or "particles" not in self.data or not label in self.data["particles"]:
             return []
         df = self.data["particles"][label]
@@ -360,37 +377,63 @@ class HitsAndTracksPlotter(object):
         # Should make this array based
         ptEtaPhi = self.PtEtaPhiVectors(label)
         traces = []
+        isPU = np.zeros(len(charge), dtype=int)
+        if label in ["Track", "TrackDisp"] and all([x in self.data["particles"] for x in ["TrackMatch", "TrackingPart"]]):
+            tpdf = self.data["particles"]["TrackingPart"]
+            tpisPU = (tpdf["TrackingPart_eventId"] != 0) | (tpdf["TrackingPart_bunchCrossing"] != 0)
+            tpid = tpdf["TrackingPart_pdgId"]
+            bestmatch = np.cumsum(df["Track_TrackingPartNumMatch"])-df["Track_TrackingPartNumMatch"][0]
+            matchdf = self.data["particles"]["TrackMatch"]
+            if "Track_TrackingPart_MatchIdx" in matchdf:
+                tpidx = np.where(bestmatch >= 0, matchdf["Track_TrackingPart_MatchIdx"][bestmatch], -1)
+                ids = np.where(tpidx >= 0, tpid[tpidx], -1)
+                isPU = np.where(tpidx >= 0, tpisPU[tpidx], -1)
+        elif label == "CaloPart":
+            isPU = (df["CaloPart_eventId"] != 0) | (df["CaloPart_bunchCrossing"] != 0)
+
         for i, (v,m,e,q) in enumerate(zip(vtx, mom, end, charge)):
             pt,eta,phi = ptEtaPhi[i]
             if pt < self.trackPtCut:
                 continue
-            pid = ids[i]
+            pid = ids[i] 
             points = self.trajectory(v, m, e, q) 
-            colors = self.mapColors([i if colortype == "Index" else pid])
+            #lightenPileup = self.removePU and isPU[i]
+            #color = self.mapColor(i if colortype == "Index" else pid, 0.25 if lightenPileup else 1.0)
+            color = self.mapColor(i if colortype == "Index" else pid)
+            if self.removePU and isPU[i]:
+               color = self.mapColor(-1, 1.)
 
             idtext = 'pdgId' if colortype != 'PFTruthPartIdx' else "PFTruthPartIdx"
-            text = [f'{idtext}: {pid}<br>p<sub>T</sub>, η, phi:  ({pt:0.2f} GeV, {eta:0.2f}, {phi:0.2f})' 
+            text = [f'{idtext}: {pid}<br>isPU: {isPU[i]}<br>p<sub>T</sub>, η, phi:  ({pt:0.2f} GeV, {eta:0.2f}, {phi:0.2f})<br>color: {color}' 
                             for p in points]
             traces.append(go.Scatter3d(x=points[:,2], y=points[:,0], z=points[:,1],
                     mode='lines', name=f"{label}Idx{i} (pdgId={pid})", 
                     hovertemplate="x: %{y}<br>y: %{z}<br>z: %{x}<br>%{text}<br>",
                     text=text,
-                    line=dict(color=colors[0] if len(colors) == 1 else colors)
+                    line=dict(color=color)
                 )
             )
         return traces
 
-    def mapColors(self, vals):
-        return np.array([self.mapColor(i) for i in vals])
+    def mapColors(self, vals, alpha=1.):
+        return np.array([self.mapColor(i, alpha) for i in vals])
 
-    def mapColor(self, i):
+    def mapColor(self, i, alpha=1.):
         if i == -1:
-            return "#c8cbcc"
+            return "#c8cbcc" 
 
-        i = int(i) % len(self.all_colors)
         if abs(i) in self.pdgIdsMap:
-            return self.pdgIdsMap[abs(i)]
-        return self.all_colors[i]
+            c = self.pdgIdsMap[abs(i)]
+        else:
+            c = self.all_colors[int(i) % len(self.all_colors)]
+
+        if alpha != 1. and type(c) == tuple:
+            if len(c) > 3:
+                c = (*c[:3], alpha) 
+            elif len(c) == 3:
+                c = (*c, alpha)
+
+        return matplotlib.colors.rgb2hex(c) 
 
     def makeLayout(self, uirev):
         # This can be done with camera, but it breaks uirevision
@@ -477,7 +520,7 @@ class HitsAndTracksPlotter(object):
         data = self.drawAllHits(colormode)
         for label in self.particles:
             # Tracking part only used for ID here
-            if not (label == "TrackingPart" and self.particles[0] != label):
+            if label != "TrackMatch" and not (label == "TrackingPart" and len(self.particles) > 1):
                 data.extend(self.drawParticles(label, pcolormode))
         data.extend(self.drawSimClusters(simclusters))
         data.extend(self.drawDetectors())
