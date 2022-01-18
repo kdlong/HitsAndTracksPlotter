@@ -399,7 +399,7 @@ class HitsAndTracksPlotter(object):
                color = self.mapColor(-2, 1.)
 
             idtext = 'pdgId' if colortype != 'PFTruthPartIdx' else "PFTruthPartIdx"
-            text = [f'{idtext}: {pid}<br>isPU: {isPU[i]}<br>p<sub>T</sub>, η, phi:  ({pt:0.2f} GeV, {eta:0.2f}, {phi:0.2f})<br>color: {color}' 
+            text = [f'{idtext}: {pid}<br>isPU: {isPU[i]}<br>p<sub>T</sub>, η, phi:  ({pt:0.2f} GeV, {eta:0.2f}, {phi:0.2f})' 
                             for p in points]
             traces.append(go.Scatter3d(x=points[:,2], y=points[:,0], z=points[:,1],
                     mode='lines', name=f"{label}Idx{i} (pdgId={pid})", 
@@ -500,7 +500,7 @@ class HitsAndTracksPlotter(object):
         P0 = initMom
         
         points = np.linspace(M0, (P0[0]/P0[1], P0[1]/P0[2], endz), 100)
-        offTracker = (point[:,0]*point[:,0]+point[:,1]*point[:,1]) > 113*2
+        offTracker = (points[:,0]*points[:,0]+points[:,1]*points[:,1]) > 113*2
         return points[~offTracker,:]
 
     def drawAllObjects(self, colormode, pcolormode, simclusters):
